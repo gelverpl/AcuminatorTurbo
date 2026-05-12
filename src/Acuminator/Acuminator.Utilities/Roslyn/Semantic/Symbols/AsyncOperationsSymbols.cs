@@ -33,9 +33,14 @@ namespace Acuminator.Utilities.Roslyn.Semantic.Symbols
 		public INamedTypeSymbol? ValueTask_Generic { get; }
 
 		/// <summary>
-		/// All methods that can start async long running operations.
+		/// All methods that can start async long-running operations.
 		/// </summary>
 		public ImmutableHashSet<IMethodSymbol> AllMethodsStartingLongRun { get; }
+		
+		/// <summary>
+		/// Names of all methods that can start async long-running operations.
+		/// </summary>
+		public ImmutableHashSet<string> AllMethodsStartingLongRunNames { get; }
 
 		internal AsyncOperationsSymbols(Compilation compilation) : base(compilation)
 		{
@@ -79,6 +84,7 @@ namespace Acuminator.Utilities.Roslyn.Semantic.Symbols
 			}
 
 			AllMethodsStartingLongRun = allStartOperationMethods.ToImmutableHashSet<IMethodSymbol>(SymbolEqualityComparer.Default);
+			AllMethodsStartingLongRunNames = AllMethodsStartingLongRun.Select(o => o.OriginalDefinition.Name).ToImmutableHashSet(StringComparer.OrdinalIgnoreCase);
 		}
 
 		private static IEnumerable<IMethodSymbol> GetMethodsFromLongOperationManagerType(INamedTypeSymbol longOperationManagerType)

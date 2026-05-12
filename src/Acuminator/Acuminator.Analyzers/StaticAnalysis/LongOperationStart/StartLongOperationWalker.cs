@@ -26,6 +26,23 @@ namespace Acuminator.Analyzers.StaticAnalysis.LongOperationStart
 		{
 			ThrowIfCancellationRequested();
 
+			if (true)
+			{
+				string? methodName = node.Expression switch
+				{
+					MemberAccessExpressionSyntax memberAccess => memberAccess.Name.Identifier.ValueText,
+					GenericNameSyntax generic => generic.Identifier.ValueText,
+					IdentifierNameSyntax identifier => identifier.Identifier.ValueText,
+					_ => null
+				};
+
+				if (methodName is null || !PxContext.AsyncOperations.AllMethodsStartingLongRunNames.Contains(methodName))
+				{
+					base.VisitInvocationExpression(node);
+					return;
+				}
+			}
+
 			IMethodSymbol? methodSymbol = GetSymbol<IMethodSymbol>(node);
 
 			if (methodSymbol == null)

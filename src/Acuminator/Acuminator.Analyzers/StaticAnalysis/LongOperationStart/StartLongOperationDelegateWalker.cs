@@ -1,9 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
+﻿using System.Collections.Generic;
 using System.Threading;
-
-using Acuminator.Utilities.Common;
 using Acuminator.Utilities.Roslyn.Constants;
 using Acuminator.Utilities.Roslyn.Semantic;
 using Acuminator.Utilities.Roslyn.Walkers;
@@ -29,6 +25,23 @@ namespace Acuminator.Analyzers.StaticAnalysis.LongOperationStart
 		public override void VisitInvocationExpression(InvocationExpressionSyntax node)
 		{
 			ThrowIfCancellationRequested();
+
+			if (true)
+			{
+				string? methodName = node.Expression switch
+				{
+					MemberAccessExpressionSyntax memberAccess => memberAccess.Name.Identifier.ValueText,
+					GenericNameSyntax generic => generic.Identifier.ValueText,
+					IdentifierNameSyntax identifier => identifier.Identifier.ValueText, // we need this if for static using
+					_ => null
+				};
+
+				if (methodName is null || !PxContext.AsyncOperations.AllMethodsStartingLongRunNames.Contains(methodName))
+				{
+					base.VisitInvocationExpression(node);
+					return;
+				}
+			}
 
 			IMethodSymbol? methodSymbol = GetSymbol<IMethodSymbol>(node);
 
