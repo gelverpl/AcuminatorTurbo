@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 
 using Acuminator.Utilities.Common;
@@ -51,7 +50,7 @@ namespace Acuminator.Utilities.Roslyn
 
 		private readonly Dictionary<SyntaxTree, SemanticModel> _semanticModels = new Dictionary<SyntaxTree, SemanticModel>();
 
-		private readonly ISet<(SyntaxNode, DiagnosticDescriptor)> _reportedDiagnostics = new HashSet<(SyntaxNode, DiagnosticDescriptor)>();
+		private readonly HashSet<(SyntaxNode, DiagnosticDescriptor)> _reportedDiagnostics = new HashSet<(SyntaxNode, DiagnosticDescriptor)>();
 
 		private readonly SymbolInfoCache _symbolsCache;
 
@@ -75,6 +74,8 @@ namespace Acuminator.Utilities.Roslyn
 		private readonly Lazy<HashSet<INamedTypeSymbol>> _typesToBypass;
 		private readonly Func<IMethodSymbol, bool>? _extraBypassCheck;
 
+		private readonly bool _recursiveAnalysisEnabled;
+
 		/// <summary>
 		/// Constructor of the class.
 		/// </summary>
@@ -91,6 +92,7 @@ namespace Acuminator.Utilities.Roslyn
 			_typesToBypass = new Lazy<HashSet<INamedTypeSymbol>>(valueFactory: GetTypesToBypass, isThreadSafe: false);
 
 			_symbolsCache = new SymbolInfoCache();
+			_recursiveAnalysisEnabled = Settings.RecursiveAnalysisEnabled;
 		}
 
 		/// <summary>
@@ -123,10 +125,10 @@ namespace Acuminator.Utilities.Roslyn
 		protected virtual T? GetSymbol<T>(ExpressionSyntax node)
 			where T : class, ISymbol
 		{
-			SymbolInfo? cached = _symbolsCache.GetOrCreate(node, () =>
+			SymbolInfo? cached = _symbolsCache.GetOrCreate(node, this, static (key, caller) =>
 			{
-				SemanticModel? semanticModel = GetSemanticModel(node.SyntaxTree);
-				return semanticModel?.GetSymbolInfo(node, CancellationToken);
+				SemanticModel? semanticModel = caller.GetSemanticModel(key.SyntaxTree);
+				return semanticModel?.GetSymbolInfo(key, caller.CancellationToken);
 			});
 
 			if (cached is not null)
@@ -138,7 +140,11 @@ namespace Acuminator.Utilities.Roslyn
 
 				if (!cached.Value.CandidateSymbols.IsEmpty)
 				{
-					return cached.Value.CandidateSymbols.OfType<T>().FirstOrDefault();
+					foreach (ISymbol candidate in cached.Value.CandidateSymbols)
+					{
+						if (candidate is T typedCandidate)
+							return typedCandidate;
+					}
 				}
 			}
 
@@ -188,7 +194,7 @@ namespace Acuminator.Utilities.Roslyn
 			}
 		}
 
-		private bool RecursiveAnalysisEnabled() => Settings.RecursiveAnalysisEnabled && NodesStack.Count <= MaxDepth;
+		private bool RecursiveAnalysisEnabled() => _recursiveAnalysisEnabled && NodesStack.Count <= MaxDepth;
 
 		protected bool IsInsideRecursiveCall => NodesStack.Count > 0;
 
@@ -400,9 +406,23 @@ namespace Acuminator.Utilities.Roslyn
 
 		private bool IsMethodInStack(IMethodSymbol calledMethod) => MethodsInStack.Contains(calledMethod);
 
-		private bool IsMethodInLocalFunctionsStack(IMethodSymbol localFunction) => 
-			localFunction.MethodKind == MethodKind.LocalFunction && 
-			LocalFunctionsStack.Contains(localFunction, SymbolEqualityComparer.Default);
+		private bool IsMethodInLocalFunctionsStack(IMethodSymbol localFunction)
+		{
+			if (localFunction.MethodKind != MethodKind.LocalFunction)
+			{
+				return false;
+			}
+
+			foreach (IMethodSymbol methodSymbol in LocalFunctionsStack)
+			{
+				if (SymbolEqualityComparer.Default.Equals(methodSymbol, localFunction))
+				{
+					return true;
+				}
+			}
+
+			return false;
+		}
 
 		/// <summary>
 		/// Extensibility point that allows to add some logic executed before <paramref name="calledMethod"/> is checked by the bypass check <see cref="BypassMethod(IMethodSymbol)"/>.

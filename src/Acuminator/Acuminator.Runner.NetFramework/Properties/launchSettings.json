@@ -30,11 +30,19 @@
     },
     "PXObjects": {
       "commandName": "Project",
-      "commandLineArgs": "D:\\Repos\\Acumatica4\\WebSites\\Pure\\PX.Objects\\PX.Objects.csproj -g D --enable-PX1007"
+      "commandLineArgs": "D:\\workspace\\AcuminatorWorkspace\\acumatica_code\\WebSites\\Pure\\PX.Objects\\PX.Objects.csproj -g D --enable-PX1007 --format json -f report_px_objects.txt"
     },
     "Pure": {
       "commandName": "Project",
-      "commandLineArgs": "D:\\Repos\\Acumatica4\\WebSites\\Pure\\Pure.sln -g D --enable-PX1007"
+      "commandLineArgs": "D:\\workspace\\AcuminatorWorkspace\\acumatica_code\\WebSites\\Pure\\Pure.sln -g D --enable-PX1007 --format json -g d"
+    },
+    "PX.Objects.SV": {
+      "commandName": "Project",
+      "commandLineArgs": "D:\\workspace\\AcuminatorWorkspace\\acumatica_code\\WebSites\\Pure\\PX.Objects.SV\\PX.Objects.SV.csproj --format json -g d -f report_px_objects_sv.txt"
+    },
+    "PX.Objects.AM": {
+      "commandName": "Project",
+      "commandLineArgs": "D:\\workspace\\AcuminatorWorkspace\\acumatica_code\\WebSites\\Pure\\PX.Objects.AM\\PX.Objects.AM.csproj --format json -g d -f report_px_objects_am.txt"
     }
   }
 }
