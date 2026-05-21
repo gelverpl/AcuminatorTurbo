@@ -35,7 +35,7 @@ namespace Acuminator.Analyzers.StaticAnalysis.LongOperationStart
 			if (methodSymbol == null || node.ArgumentList?.Arguments.Count is null or 0 ||
 				!PxContext.AsyncOperations.AllMethodsStartingLongRun.Contains(methodSymbol.OriginalDefinition))
 			{
-				base.VisitInvocationExpression(node);
+				base.VisitInvocationExpression(node, methodSymbol);
 				return;
 			}
 
@@ -51,7 +51,7 @@ namespace Acuminator.Analyzers.StaticAnalysis.LongOperationStart
 				}
 			}
 
-			base.VisitInvocationExpression(node);
+			base.VisitInvocationExpression(node, methodSymbol);
 		}
 
 		private ExpressionSyntax? GetLongRunDelegateArgument(IMethodSymbol methodSymbol, InvocationExpressionSyntax methodNode)

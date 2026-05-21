@@ -68,7 +68,7 @@ namespace Acuminator.Utilities.Roslyn.Semantic.PXGraph
 			if (isSetProcessDelegate || isSetAsyncProcessDelegate)
 			{
 				AnalyzeSetProcessDelegate(viewName, node.ArgumentList);
-				base.VisitInvocationExpression(node);
+				base.VisitInvocationExpression(node, methodSymbol);
 				return;
 			}
 
@@ -78,11 +78,9 @@ namespace Acuminator.Utilities.Roslyn.Semantic.PXGraph
 			if (isSetParametersDelegate)
 			{
 				AnalyzeSetParametersDelegate(viewName, node.ArgumentList);
-				base.VisitInvocationExpression(node);
-				return;
 			}
 
-			base.VisitInvocationExpression(node);
+			base.VisitInvocationExpression(node, methodSymbol);
 		}
 
 		private void AnalyzeSetParametersDelegate(string viewName, ArgumentListSyntax argumentList)

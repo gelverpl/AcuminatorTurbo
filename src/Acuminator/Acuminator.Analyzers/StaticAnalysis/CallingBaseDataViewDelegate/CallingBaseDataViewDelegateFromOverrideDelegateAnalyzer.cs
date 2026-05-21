@@ -83,17 +83,15 @@ namespace Acuminator.Analyzers.StaticAnalysis.CallingBaseDataViewDelegate
 					methodSymbol = methodSymbol.OriginalDefinition?.OverriddenMethod ?? methodSymbol.OriginalDefinition;
 				}
 
-				var expressionSymbol = GetSymbol<ISymbol>(node.Expression);
-
 				// Case Base.PXSelectBaseGenIns.Select()
 				if (PxContext.PXSelectBaseGeneric.Select.Contains<IMethodSymbol>(methodSymbol!, SymbolEqualityComparer.Default))
 				{
-					reported = TryToReport(expressionSymbol, node);
+					reported = TryToReport(GetSymbol<ISymbol>(node.Expression), node);
 				}
 				// Case Base.PXSelectBaseGenIns.View.Select()
-				else if (PxContext.PXView.Select.Contains(symbol, SymbolEqualityComparer.Default) &&
-						 PxContext.PXSelectBase.View.Equals(expressionSymbol, SymbolEqualityComparer.Default) &&
-						 node.Expression is MemberAccessExpressionSyntax expressionNode)
+				else if (node.Expression is MemberAccessExpressionSyntax expressionNode
+						&& PxContext.PXView.Select.Contains(symbol, SymbolEqualityComparer.Default)
+						&& PxContext.PXSelectBase.View.Equals(GetSymbol<ISymbol>(node.Expression), SymbolEqualityComparer.Default))
 				{
 					var innerExpressionSymbol = GetSymbol<ISymbol>(expressionNode.Expression);
 					reported = TryToReport(innerExpressionSymbol, node);

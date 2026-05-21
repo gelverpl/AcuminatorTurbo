@@ -40,7 +40,7 @@ namespace Acuminator.Analyzers.StaticAnalysis.LongOperationStart
 			}
 			else
 			{
-				base.VisitInvocationExpression(node);
+				base.VisitInvocationExpression(node, methodSymbol);
 			}
 		}
 

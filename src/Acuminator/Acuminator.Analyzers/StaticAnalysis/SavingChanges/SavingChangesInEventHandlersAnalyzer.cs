@@ -86,7 +86,7 @@ namespace Acuminator.Analyzers.StaticAnalysis.SavingChanges
 
 				if (methodSymbol == null || !AnalyzeAndReportDiagnostic(methodSymbol, node))
 				{
-					base.VisitInvocationExpression(node);
+					base.VisitInvocationExpression(node, methodSymbol);
 				}
 			}
 

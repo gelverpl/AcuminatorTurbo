@@ -127,7 +127,7 @@ namespace Acuminator.Analyzers.StaticAnalysis.CallingBaseActionHandler
 					}
 				}
 
-				base.VisitInvocationExpression(invocationNode);
+				base.VisitInvocationExpression(invocationNode, methodSymbol);
 			}
 
 			/// <summary>

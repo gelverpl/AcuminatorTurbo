@@ -91,7 +91,7 @@ namespace Acuminator.Analyzers.StaticAnalysis.RaiseExceptionHandling
 
 				if (methodSymbol == null || !PxContext.PXCache.RaiseExceptionHandling.Contains(methodSymbol, SymbolEqualityComparer.Default))
 				{
-					base.VisitInvocationExpression(node);
+					base.VisitInvocationExpression(node, methodSymbol);
 					return;
 				}
 
