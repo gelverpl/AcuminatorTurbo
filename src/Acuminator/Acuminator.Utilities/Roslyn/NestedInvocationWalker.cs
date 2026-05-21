@@ -208,6 +208,19 @@ namespace Acuminator.Utilities.Roslyn
 			base.VisitInvocationExpression(node);
 		}
 
+		// Created for a performance reason
+		public void VisitInvocationExpression(InvocationExpressionSyntax node, IMethodSymbol? methodSymbol)
+		{
+			ThrowIfCancellationRequested();
+
+			if (RecursiveAnalysisEnabled() && node.Parent != null && !node.Parent.IsKind(SyntaxKind.ConditionalAccessExpression))
+			{
+				VisitCalledMethod(methodSymbol ?? GetSymbol<IMethodSymbol>(node), node);
+			}
+
+			base.VisitInvocationExpression(node);
+		}
+
 		public override void VisitMemberAccessExpression(MemberAccessExpressionSyntax node)
 		{
 			if (node.Parent is InvocationExpressionSyntax invocation && invocation.Expression == node)

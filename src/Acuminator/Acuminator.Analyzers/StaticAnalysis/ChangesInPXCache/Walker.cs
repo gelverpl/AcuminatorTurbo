@@ -38,7 +38,7 @@ namespace Acuminator.Analyzers.StaticAnalysis.ChangesInPXCache
 			}
 			else
 			{
-				base.VisitInvocationExpression(node);
+				base.VisitInvocationExpression(node, methodSymbol);
 			}
 		}
 

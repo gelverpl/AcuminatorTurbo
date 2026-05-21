@@ -56,7 +56,7 @@ namespace Acuminator.Analyzers.StaticAnalysis.DatabaseQueries
 			}
 			else
 			{
-				base.VisitInvocationExpression(node);
+				base.VisitInvocationExpression(node, methodSymbol);
 			}
 		}
 

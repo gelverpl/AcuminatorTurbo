@@ -37,7 +37,7 @@ namespace Acuminator.Analyzers.StaticAnalysis.UiPresentationLogic
 			}
 			else
 			{
-				base.VisitInvocationExpression(node);
+				base.VisitInvocationExpression(node, methodSymbol);
 			}
 		}
 	}

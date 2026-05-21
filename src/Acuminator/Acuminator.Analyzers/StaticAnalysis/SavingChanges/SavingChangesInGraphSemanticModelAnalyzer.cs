@@ -67,7 +67,7 @@ namespace Acuminator.Analyzers.StaticAnalysis.SavingChanges
                 }
                 else
                 {
-                    base.VisitInvocationExpression(node);
+                    base.VisitInvocationExpression(node, symbol);
                 }
             }
         }

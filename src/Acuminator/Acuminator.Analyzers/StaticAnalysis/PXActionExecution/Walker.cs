@@ -35,7 +35,7 @@ namespace Acuminator.Analyzers.StaticAnalysis.PXActionExecution
 			}
 			else
 			{
-				base.VisitInvocationExpression(node);
+				base.VisitInvocationExpression(node, methodSymbol);
 			}
 		}
 	}
