@@ -1,6 +1,7 @@
 ﻿#nullable enable
 
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
@@ -29,7 +30,7 @@ namespace Acuminator.Utilities.Roslyn.Semantic
 		/// <param name="type">The type to act on.</param>
 		/// <returns/>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public static IEnumerable<ITypeSymbol> GetBaseTypesAndThis(this ITypeSymbol type) =>
+		public static BaseTypesEnumerable GetBaseTypesAndThis(this ITypeSymbol type) =>
 			type.GetBaseTypesImplementation(includeThis: true);
 
 		/// <summary>
@@ -38,27 +39,43 @@ namespace Acuminator.Utilities.Roslyn.Semantic
 		/// <param name="type">The type to act on.</param>
 		/// <returns/>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public static IEnumerable<ITypeSymbol> GetBaseTypes(this ITypeSymbol type) =>
+		public static BaseTypesEnumerable GetBaseTypes(this ITypeSymbol type) =>
 			type.GetBaseTypesImplementation(includeThis: false);
 
-		private static IEnumerable<ITypeSymbol> GetBaseTypesImplementation(this ITypeSymbol type, bool includeThis)
+		/// <summary>
+		/// Returns a <see cref="BaseTypesEnumerable"/> over the type's base-type chain.
+		/// Returns a struct (not <see cref="IEnumerable{T}"/>) so internal callers in this file can
+		/// <c>foreach</c> over it without boxing the enumerable or its enumerator.
+		/// </summary>
+		/// <remarks>
+		/// Public callers via <see cref="GetBaseTypesAndThis"/>/<see cref="GetBaseTypes"/> still receive
+		/// <see cref="IEnumerable{T}"/> — those wrappers box the struct, preserving the existing public contract.
+		/// The rare <see cref="ITypeParameterSymbol"/> branch falls back to the slow allocating path and is not optimized.
+		/// </remarks>
+		private static BaseTypesEnumerable GetBaseTypesImplementation(this ITypeSymbol type, bool includeThis)
 		{
 			type.ThrowOnNull();
 
 			if (type is ITypeParameterSymbol typeParameter)
 			{
-				// for a type parameter we can consider its generic constraints like "where T : SomeClass" as its base types
+				// Rare path — allocations are acceptable here.
+				// For a type parameter, "base types" are its generic constraints (e.g. `where T : SomeClass`).
 				IEnumerable<ITypeSymbol> constraintTypes = typeParameter.GetAllConstraintTypes(includeInterfaces: false)
 																	    .SelectMany(constraint => constraint.GetBaseTypesIterator(includeThis: true))
 																	    .Distinct<ITypeSymbol>(SymbolEqualityComparer.Default);
-				return includeThis 
+				IEnumerable<ITypeSymbol> finalSequence = includeThis
 					? constraintTypes.PrependItem(typeParameter)
 					: constraintTypes;
+
+				return new BaseTypesEnumerable(finalSequence);
 			}
 
-			return type.GetBaseTypesIterator(includeThis);
+			// Hot path — no allocation. The struct walks the .BaseType chain directly.
+			return new BaseTypesEnumerable(type, includeThis);
 		}
 
+		// Kept for the rare type-parameter branch above, where it is consumed by SelectMany.
+		// Not used on the hot path — that lives in BaseTypesEnumerable.Enumerator.
 		private static IEnumerable<ITypeSymbol> GetBaseTypesIterator(this ITypeSymbol typeToUse, bool includeThis)
 		{
 			var current = includeThis ? typeToUse : typeToUse.BaseType;
@@ -191,14 +208,22 @@ namespace Acuminator.Utilities.Roslyn.Semantic
 			type.ThrowOnNull();
 			baseType.ThrowOnNull();
 
-			var typeList = type.GetBaseTypesAndThis();
+			foreach (ITypeSymbol typeSymbol in type.GetBaseTypesAndThis())
+			{
+				if (typeSymbol.Equals(baseType, SymbolEqualityComparer.Default))
+					return true;
+			}
 
 			if (includeInterfaces)
 			{
-				typeList = typeList.ConcatStructList(type.AllInterfaces);
+				foreach (INamedTypeSymbol namedTypeSymbol in type.AllInterfaces)
+				{
+					if (namedTypeSymbol.Equals(baseType, SymbolEqualityComparer.Default))
+						return true;
+				}
 			}
 
-			return typeList.Any(t => t.Equals(baseType, SymbolEqualityComparer.Default));
+			return false;
 		}
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -210,13 +235,23 @@ namespace Acuminator.Utilities.Roslyn.Semantic
 			type.ThrowOnNull();
 			baseType.ThrowOnNull();
 
-			var typeList = type.GetBaseTypesAndThis();
+			foreach (ITypeSymbol typeSymbol in type.GetBaseTypesAndThis())
+			{
+				if (typeSymbol.OriginalDefinition.Equals(baseType.OriginalDefinition, SymbolEqualityComparer.Default))
+					return true;
+			}
 
 			if (includeInterfaces)
-				typeList = typeList.ConcatStructList(type.AllInterfaces);
+			{
+				foreach (INamedTypeSymbol namedTypeSymbol in type.AllInterfaces)
+				{
+					if (namedTypeSymbol.OriginalDefinition.Equals(baseType.OriginalDefinition,
+						    SymbolEqualityComparer.Default))
+						return true;
+				}
+			}
 
-			return typeList.Select(t => t.OriginalDefinition)
-						   .Any(t => t.Equals(baseType.OriginalDefinition, SymbolEqualityComparer.Default));
+			return false;
 		}
 
 		public static bool InheritsFrom(this ITypeSymbol type, ITypeSymbol baseType, bool includeInterfaces = false)
@@ -224,14 +259,26 @@ namespace Acuminator.Utilities.Roslyn.Semantic
 			type.ThrowOnNull();
 			baseType.ThrowOnNull();
 
-			IEnumerable<ITypeSymbol> baseTypes = type.GetBaseTypes();
+			foreach (ITypeSymbol typeSymbol in type.GetBaseTypes())
+			{
+				if (typeSymbol.Equals(baseType, SymbolEqualityComparer.Default))
+				{
+					return true;
+				}
+			}
 
 			if (includeInterfaces)
 			{
-				baseTypes = baseTypes.ConcatStructList(type.AllInterfaces);
+				foreach (INamedTypeSymbol namedTypeSymbol in type.AllInterfaces)
+				{
+					if (namedTypeSymbol.Equals(baseType, SymbolEqualityComparer.Default))
+					{
+						return true;
+					}
+				}
 			}
-			
-			return baseTypes.Any(t => t.Equals(baseType, SymbolEqualityComparer.Default));
+
+			return false;
 		}
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -251,19 +298,15 @@ namespace Acuminator.Utilities.Roslyn.Semantic
 			if (type.TypeKind == TypeKind.Interface && type.Equals(interfaceType, SymbolEqualityComparer.Default))
 				return true;
 
-			return type.AllInterfaces.Any(t => t.Equals(interfaceType, SymbolEqualityComparer.Default));
+			foreach (INamedTypeSymbol namedTypeSymbol in type.AllInterfaces)
+			{
+				if (namedTypeSymbol.Equals(interfaceType, SymbolEqualityComparer.Default))
+					return true;
+			}
+
+			return false;
 		}
 
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public static bool InheritsFrom(this ITypeSymbol symbol, string baseType)
-		{
-			symbol.ThrowOnNull();
-			baseType.ThrowOnNullOrWhiteSpace();
-
-			return symbol.GetBaseTypesAndThis()
-						 .Any(t => t.Name == baseType);
-		}
-		
 		/// <summary>
 		/// Determine if "type" inherits from "baseType", ignoring constructed types, optionally including interfaces, dealing only with original
 		/// types.
@@ -278,14 +321,22 @@ namespace Acuminator.Utilities.Roslyn.Semantic
 			if (type == null)
 				return false;
 
-			IEnumerable<ITypeSymbol> baseTypes = type.GetBaseTypesAndThis();
+			foreach (ITypeSymbol typeSymbol in type.GetBaseTypesAndThis())
+			{
+				if (typeSymbol.Name == baseTypeName)
+					return true;
+			}
 
 			if (includeInterfaces)
 			{
-				baseTypes = baseTypes.ConcatStructList(type.AllInterfaces);
+				foreach (INamedTypeSymbol namedTypeSymbol in type.AllInterfaces)
+				{
+					if (namedTypeSymbol.Name == baseTypeName)
+						return true;
+				}
 			}
 
-			return baseTypes.Any(typeSymbol => typeSymbol.Name == baseTypeName);					
+			return false;
 		}
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -296,7 +347,15 @@ namespace Acuminator.Utilities.Roslyn.Semantic
 			else if (type.TypeKind == TypeKind.Interface && type.Name == interfaceName)
 				return true;
 			else
-				return type.AllInterfaces.Any(interfaceType => interfaceType.Name == interfaceName);
+			{
+				foreach (INamedTypeSymbol namedTypeSymbol in type.AllInterfaces)
+				{
+					if(namedTypeSymbol.Name == interfaceName)
+						return true;
+				}
+
+				return false;
+			}
 		}
 			
 
@@ -808,6 +867,89 @@ namespace Acuminator.Utilities.Roslyn.Semantic
 			}
 			else
 				return [];
+		}
+	}
+	
+	public readonly struct BaseTypesEnumerable : IEnumerable<ITypeSymbol>
+	{
+		// Fast path — the common case. Walks the .BaseType chain starting from _start.
+		private readonly ITypeSymbol? _start;
+		private readonly bool _includeThis;
+
+		// Slow path — used only by the rare ITypeParameterSymbol branch in GetBaseTypesImplementation.
+		// When non-null, iteration is delegated to this sequence (boxing the enumerator).
+		private readonly IEnumerable<ITypeSymbol>? _slowFallback;
+
+		public BaseTypesEnumerable(ITypeSymbol start, bool includeThis)
+		{
+			_start = start;
+			_includeThis = includeThis;
+			_slowFallback = null;
+		}
+
+		/// <summary>
+		/// Slow-path constructor. Used only for the rare type-parameter case;
+		/// iterating allocates one boxed enumerator from <paramref name="slowFallback"/>.
+		/// </summary>
+		public BaseTypesEnumerable(IEnumerable<ITypeSymbol> slowFallback)
+		{
+			_start = null;
+			_includeThis = false;
+			_slowFallback = slowFallback;
+		}
+
+		public Enumerator GetEnumerator() => _slowFallback != null
+			? new Enumerator(_slowFallback.GetEnumerator())
+			: new Enumerator(_start!, _includeThis);
+
+		IEnumerator<ITypeSymbol> IEnumerable<ITypeSymbol>.GetEnumerator() => GetEnumerator();
+		IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+
+		public struct Enumerator : IEnumerator<ITypeSymbol>
+		{
+			// Fast-path state:
+			private readonly ITypeSymbol? _start;
+			private readonly bool _includeThis;
+			private ITypeSymbol? _current;
+			private bool _started;
+
+			// Slow-path state — non-null switches MoveNext to the boxed-enumerator branch.
+			private readonly IEnumerator<ITypeSymbol>? _slowEnumerator;
+
+			public Enumerator(ITypeSymbol start, bool includeThis)
+			{
+				_start = start;
+				_includeThis = includeThis;
+				_current = null;
+				_started = false;
+				_slowEnumerator = null;
+			}
+
+			public Enumerator(IEnumerator<ITypeSymbol> slowEnumerator)
+			{
+				_start = null;
+				_includeThis = false;
+				_current = null;
+				_started = false;
+				_slowEnumerator = slowEnumerator;
+			}
+
+			public ITypeSymbol Current => _slowEnumerator != null ? _slowEnumerator.Current : _current!;
+			object IEnumerator.Current => Current;
+
+			public bool MoveNext()
+			{
+				if (_slowEnumerator != null)
+					return _slowEnumerator.MoveNext();
+
+				_current = !_started
+					? (_started = true, _includeThis ? _start : _start!.BaseType).Item2
+					: _current?.BaseType;
+				return _current != null;
+			}
+
+			public void Reset() => throw new NotSupportedException();
+			public void Dispose() => _slowEnumerator?.Dispose();
 		}
 	}
 }

@@ -58,7 +58,7 @@ public static class DacSymbolsHierarchyUtils
 			return includeDacType ? [dacType] : [];
 		}
 
-		var dacHierarchy = dacType.GetBaseTypes();
+		IEnumerable<ITypeSymbol> dacHierarchy = dacType.GetBaseTypes();
 
 		// This filter takes all DAC types with a check for the base PXBqlTable type of System.Object type 
 		// instead of checking if the type implements IBqlTable interface. This is done to include a useful part of type hierarchy in a scenario 

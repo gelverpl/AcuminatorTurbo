@@ -57,7 +57,7 @@ namespace Acuminator.Analyzers.StaticAnalysis.ViewDeclarationOrder
 				if (view.Type.TypeArguments().IsDefaultOrEmpty || view.Symbol.Locations.IsDefaultOrEmpty)
 					continue;
 
-				var baseTypes = view.DAC?.GetBaseTypesAndThis();
+				IEnumerable<ITypeSymbol>? baseTypes = view.DAC?.GetBaseTypesAndThis();
 				int countOfDACsInHierarchy = baseTypes.IsNullOrEmpty()
 												? 0
 												: baseTypes.TakeWhile(t => t.IsDAC()).Count();
