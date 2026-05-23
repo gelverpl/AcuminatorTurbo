@@ -1,6 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Collections.Immutable;
+﻿using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 
@@ -28,7 +26,7 @@ public partial class BannedApiAnalyzer
 		private readonly IApiInfoRetriever? _allowedInfoRetriever;
 		private readonly BannedTypesInfoCollector _bannedTypesInfoCollector;
 
-		private readonly HashSet<string> _namespacesWithUsedAllowedMembers = new();
+		private readonly HashSet<INamespaceSymbol> _namespacesWithUsedAllowedMembers = new(SymbolEqualityComparer.Default);
 		private readonly List<(UsingDirectiveSyntax Using, INamespaceSymbol Namespace, ApiSearchResult BanApiInfo)> _suspiciousUsings = new();
 
 		private readonly HashSet<(Location ErrorLocation, Api ErrorInfo)> _reportedErrors = new();
@@ -61,7 +59,7 @@ public partial class BannedApiAnalyzer
 				_namespacesWithUsedAllowedMembers.AddRange(_bannedTypesInfoCollector.NamespacesWithUsedAllowedMembers);
 
 			var usingsToReport = _namespacesWithUsedAllowedMembers.Count > 0
-				? _suspiciousUsings.Where(usingInfo => !_namespacesWithUsedAllowedMembers.Contains(usingInfo.Namespace.ToString()))
+				? _suspiciousUsings.Where(usingInfo => !_namespacesWithUsedAllowedMembers.Contains(usingInfo.Namespace))
 				: _suspiciousUsings;
 
 			foreach (var (@using, @namespace, banInfo) in usingsToReport)
@@ -139,6 +137,10 @@ public partial class BannedApiAnalyzer
 		{
 			Cancellation.ThrowIfCancellationRequested();
 
+			// Already analyzed by AnalyzeAccess on the parent member/conditional access.
+			if (IsNameOfAccessExpression(genericNameNode))
+				return;
+			
 			if (SemanticModel.GetSymbolOrFirstCandidate(genericNameNode, Cancellation) is not ISymbol symbol)
 			{
 				Cancellation.ThrowIfCancellationRequested();
@@ -221,8 +223,16 @@ public partial class BannedApiAnalyzer
 			
 			Cancellation.ThrowIfCancellationRequested();
 
-			var typeInfo = SemanticModel.GetTypeInfo(expressionBeingAccessed, Cancellation);
-			var typeOfContainingSymbol = typeInfo.Type;
+			// Trying to get type from cheap Type property before expensive call of SemanticModel.GetTypeInfo
+			ITypeSymbol? typeOfContainingSymbol = symbolBeingAccessed switch
+			{
+				ILocalSymbol local => local.Type,
+				IFieldSymbol field => field.Type,
+				IPropertySymbol prop => prop.Type,
+				IParameterSymbol param => param.Type,
+				IMethodSymbol method => method.ReturnType,
+				_ => SemanticModel.GetTypeInfo(expressionBeingAccessed, Cancellation).Type,
+			};
 
 			if (typeOfContainingSymbol != null && CheckSymbolForBannedInfo(typeOfContainingSymbol, expressionBeingAccessed))
 				return false;
@@ -237,6 +247,10 @@ public partial class BannedApiAnalyzer
 		public override void VisitIdentifierName(IdentifierNameSyntax identifierNode)
 		{
 			Cancellation.ThrowIfCancellationRequested();
+			
+			// Already analyzed by AnalyzeAccess on the parent member/conditional access.
+			if (IsNameOfAccessExpression(identifierNode))
+				return;
 
 			if (SemanticModel.GetSymbolOrFirstCandidate(identifierNode, Cancellation) is not ISymbol symbol)
 				return;
@@ -264,7 +278,7 @@ public partial class BannedApiAnalyzer
 			switch (symbol)
 			{
 				case ITypeParameterSymbol typeParameterSymbol:
-					var bannedTypeParameterInfos = _bannedTypesInfoCollector.GetTypeParameterBannedApiInfos(typeParameterSymbol, CheckInterfaces);			
+					var bannedTypeParameterInfos = _bannedTypesInfoCollector.GetTypeParameterBannedApiInfos(typeParameterSymbol, CheckInterfaces);
 					return ReportApiList(typeParameterSymbol, bannedTypeParameterInfos, nodeToReport);
 
 				case ITypeSymbol typeSymbol:
@@ -298,6 +312,14 @@ public partial class BannedApiAnalyzer
 			return null;
 		}
 
+		private static bool IsNameOfAccessExpression(SimpleNameSyntax name) =>
+			name.Parent switch
+			{
+				MemberAccessExpressionSyntax memberAccess when memberAccess.Name == name  => true,
+				MemberBindingExpressionSyntax memberBinding when memberBinding.Name == name  => true,
+				_ => false,
+			};
+		
 		private bool ReportApiList(ISymbol symbolToReport, List<ApiSearchResult>? bannedApisList, SyntaxNode node)
 		{
 			if (bannedApisList?.Count > 0)
@@ -368,7 +390,7 @@ public partial class BannedApiAnalyzer
 			if (_allowedInfoRetriever?.GetInfoForApi(symbol) is ApiSearchResult)
 			{
 				if (symbol.ContainingNamespace != null && !symbol.ContainingNamespace.IsGlobalNamespace)
-					_namespacesWithUsedAllowedMembers.Add(symbol.ContainingNamespace.ToString());
+					_namespacesWithUsedAllowedMembers.Add(symbol.ContainingNamespace);
 
 				return true;
 			}

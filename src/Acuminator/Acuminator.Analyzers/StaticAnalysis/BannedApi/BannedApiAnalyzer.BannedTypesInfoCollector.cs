@@ -1,7 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.Linq;
 using System.Threading;
 
 using Acuminator.Utilities.BannedApi.ApiInfoRetrievers;
@@ -20,7 +18,7 @@ public partial class BannedApiAnalyzer
 		private readonly IApiInfoRetriever? _allowedInfoRetriever;
 		private readonly HashSet<ITypeSymbol> _checkedTypes = new HashSet<ITypeSymbol>(SymbolEqualityComparer.Default);
 
-		public HashSet<string> NamespacesWithUsedAllowedMembers { get; } = new();
+		public HashSet<INamespaceSymbol> NamespacesWithUsedAllowedMembers { get; } = new(SymbolEqualityComparer.Default);
 
 		public BannedTypesInfoCollector(IApiInfoRetriever apiBanInfoRetriever, IApiInfoRetriever? allowedInfoRetriever,
 										CancellationToken cancellation)
@@ -116,7 +114,7 @@ public partial class BannedApiAnalyzer
 
 		private List<ApiSearchResult>? GetBannedInfosFromType(ITypeSymbol typeSymbol, List<ApiSearchResult>? alreadyCollectedInfos, bool checkInterfaces)
 		{
-			if (_apiBanInfoRetriever.GetInfoForApi(typeSymbol) is ApiSearchResult bannedTypeInfo && !IsAllowedApi(typeSymbol))
+			if (_apiBanInfoRetriever.GetInfoForApi(typeSymbol) is { } bannedTypeInfo && !IsAllowedApi(typeSymbol))
 			{
 				alreadyCollectedInfos ??= new List<ApiSearchResult>(capacity: 4);
 				alreadyCollectedInfos.Add(bannedTypeInfo);
@@ -165,10 +163,10 @@ public partial class BannedApiAnalyzer
 
 		private bool IsAllowedApi(ISymbol symbol)
 		{
-			if (_allowedInfoRetriever?.GetInfoForApi(symbol) is ApiSearchResult)
+			if (_allowedInfoRetriever?.GetInfoForApi(symbol) != null)
 			{
 				if (symbol.ContainingNamespace != null && !symbol.ContainingNamespace.IsGlobalNamespace)
-					NamespacesWithUsedAllowedMembers.Add(symbol.ContainingNamespace.ToString());
+					NamespacesWithUsedAllowedMembers.Add(symbol.ContainingNamespace);
 
 				return true;
 			}
