@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-
-using Acuminator.Utilities.Common;
+﻿using Acuminator.Utilities.Common;
 using Acuminator.Utilities.Roslyn.Semantic;
 
 using Microsoft.CodeAnalysis;
@@ -25,20 +21,41 @@ namespace Acuminator.Utilities.Roslyn.Walkers
 			Context = context;
 		}
 
+		public override void VisitInvocationExpression(InvocationExpressionSyntax node)
+		{
+			ThrowIfCancellationRequested();
+
+			IMethodSymbol? methodSymbol = GetSymbol<IMethodSymbol>(node);
+
+			if (methodSymbol != null &&
+				PxContext.PXGraph.CreateInstance.Contains<IMethodSymbol>(methodSymbol.ConstructedFrom, SymbolEqualityComparer.Default))
+			{
+				ReportDiagnostic(Context.ReportDiagnostic, Descriptor, node);
+			}
+
+			base.VisitInvocationExpression(node, methodSymbol);
+		}
+
 		public override void VisitMemberAccessExpression(MemberAccessExpressionSyntax node)
 		{
 			ThrowIfCancellationRequested();
 
-			IMethodSymbol? symbol = GetSymbol<IMethodSymbol>(node);
-
-			if (symbol != null && PxContext.PXGraph.CreateInstance.Contains<IMethodSymbol>(symbol.ConstructedFrom, SymbolEqualityComparer.Default))
-			{
-				ReportDiagnostic(Context.ReportDiagnostic, Descriptor, node);
-			}
-			else
+			if (node.Parent is InvocationExpressionSyntax invocation && invocation.Expression == node)
 			{
 				base.VisitMemberAccessExpression(node);
+				return;
 			}
+
+			IMethodSymbol? methodSymbol = GetSymbol<IMethodSymbol>(node);
+
+			if (methodSymbol != null &&
+				PxContext.PXGraph.CreateInstance.Contains<IMethodSymbol>(methodSymbol.ConstructedFrom, SymbolEqualityComparer.Default))
+			{
+				ReportDiagnostic(Context.ReportDiagnostic, Descriptor, node);
+				return;
+			}
+
+			base.VisitMemberAccessExpression(node);
 		}
 
 		/// <summary>

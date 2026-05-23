@@ -215,7 +215,7 @@ namespace Acuminator.Utilities.Roslyn
 		}
 
 		// Created for a performance reason
-		public void VisitInvocationExpression(InvocationExpressionSyntax node, IMethodSymbol? methodSymbol)
+		protected void VisitInvocationExpression(InvocationExpressionSyntax node, IMethodSymbol? methodSymbol)
 		{
 			ThrowIfCancellationRequested();
 
