@@ -1,0 +1,23 @@
+# Local paths configuration.
+# Copy this file to `paths.local.ps1` (which is gitignored) and replace
+# each value with your machine-specific path.
+
+# Path to the main repository worktree. The runner built from here is the
+# "subject" — the variant being measured. You check out whatever branch you
+# want to test: `turbo` for a landed iteration, `playground_<topic>` for a
+# hypothesis, `feature/<name>` for a PR preview, or any commit (detached HEAD).
+$subjectRepoPath        = "C:\path\to\AcuminatorTurbo"
+
+# Path to the sibling worktree, conventionally pinned to `dev` (the
+# fast-forward mirror of upstream). The runner built from here is the
+# baseline that the subject is compared against.
+# Created once via:  git worktree add ../AcuminatorTurbo_dev dev
+$baselineRepoPath       = "C:\path\to\AcuminatorTurbo_dev"
+
+# Path to the directory containing the Acumatica .sln / .csproj files
+# that the runner analyzes during a measurement run.
+$acumaticaSolutionPath  = "C:\path\to\acumatica_code\WebSites\Pure"
+
+# Path to the PerfView.exe binary (used by collect_perf_view_gc_stats.ps1).
+# Download from: https://github.com/microsoft/perfview/releases
+$perfViewPath           = "C:\path\to\PerfView\PerfView.exe"

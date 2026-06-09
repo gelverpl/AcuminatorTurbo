@@ -1,0 +1,6 @@
+# Local machine-specific paths (template: paths.local.ps1.template)
+paths.local.ps1
+
+# Measurement outputs
+sw_*/
+gc_*/

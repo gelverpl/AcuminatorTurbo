@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<!-- Created with Claude Opus 4.7. -->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Performance Benchmark Chart</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #ffffff;
+      --fg: #222;
+      --fg-muted: #666;
+      --panel: #ffffff;
+      --border: #bbb;
+      --btn-bg: #f4f4f4;
+      --btn-fg: #222;
+      --btn-border: #888;
+      --btn-hover-bg: #e8e8e8;
+      --primary-bg: #2c6cb5;
+      --primary-fg: #fff;
+      --primary-hover-bg: #1f5290;
+      --error: #b00020;
+      --baseline-stroke: #333;
+      --baseline-highlight: #f5d76e;
+      --baseline-highlight-opacity: 0.12;
+      --swatch-border: rgba(0,0,0,0.15);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #1e1e1e;
+        --fg: #e6e6e6;
+        --fg-muted: #a0a0a0;
+        --panel: #2a2a2a;
+        --border: #555;
+        --btn-bg: #2c2c2c;
+        --btn-fg: #e6e6e6;
+        --btn-border: #555;
+        --btn-hover-bg: #3a3a3a;
+        --primary-bg: #4a8fd1;
+        --primary-fg: #fff;
+        --primary-hover-bg: #5a9be0;
+        --error: #ff7676;
+        --baseline-stroke: #dcdcdc;
+        --baseline-highlight: #ffd966;
+        --baseline-highlight-opacity: 0.18;
+        --swatch-border: rgba(255,255,255,0.25);
+      }
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+      margin: 20px;
+      background: var(--bg);
+      color: var(--fg);
+    }
+    h2 { margin-top: 0; }
+    .controls { display: flex; flex-direction: column; gap: 8px; max-width: 1100px; }
+    textarea {
+      width: 100%;
+      height: 180px;
+      font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+      font-size: 12px;
+      padding: 8px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      resize: vertical;
+      background: var(--panel);
+      color: var(--fg);
+    }
+    .button-row { display: flex; gap: 8px; }
+    button {
+      padding: 8px 16px;
+      border: 1px solid var(--btn-border);
+      background: var(--btn-bg);
+      color: var(--btn-fg);
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    button:hover { background: var(--btn-hover-bg); }
+    button.primary {
+      background: var(--primary-bg);
+      color: var(--primary-fg);
+      border-color: var(--primary-bg);
+    }
+    button.primary:hover { background: var(--primary-hover-bg); }
+    #error {
+      color: var(--error);
+      font-size: 13px;
+      min-height: 18px;
+      margin: 4px 0;
+    }
+    .chart-wrapper {
+      margin-top: 16px;
+      text-align: center;
+    }
+    .legend {
+      display: flex;
+      justify-content: center;
+      gap: 24px;
+      margin-bottom: 8px;
+      font-size: 13px;
+    }
+    .legend-item { display: flex; align-items: center; gap: 6px; }
+    .legend-swatch {
+      width: 14px; height: 14px;
+      border-radius: 2px;
+      border: 1px solid var(--swatch-border);
+    }
+    .axis text { font-size: 11px; }
+    .axis-label { font-size: 12px; font-weight: 600; }
+    /* X-axis and baseline bar outlines stay black regardless of theme — they sit on bright bars or chart frame. */
+    .x-axis text { fill: #2a91a9; }
+    .x-axis path,
+    .x-axis line { stroke: #2a91a9; }
+    .x-axis-label { fill: #2a91a9; }
+    .bar { cursor: pointer; transition: opacity 0.12s; }
+    .bar:hover { opacity: 0.78; }
+    .gc-bar { cursor: pointer; transition: opacity 0.12s; }
+    .gc-bar:hover { opacity: 0.78; }
+    .bar.baseline-bar,
+    .gc-bar.baseline-bar {
+      stroke: #2a91a9;
+      stroke-width: 1.2;
+    }
+    .baseline-marker {
+      stroke-dasharray: 4 3;
+      stroke-width: 1.2;
+      fill: none;
+      opacity: 0.55;
+    }
+    .iter-bg-baseline {
+      fill: var(--baseline-highlight);
+      opacity: var(--baseline-highlight-opacity);
+    }
+    .tooltip {
+      position: absolute;
+      background: rgba(20, 20, 20, 0.92);
+      color: #fff;
+      padding: 8px 10px;
+      border-radius: 4px;
+      font-size: 12px;
+      line-height: 1.45;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.12s;
+      white-space: nowrap;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    }
+    .tooltip .tt-title { font-weight: 600; margin-bottom: 4px; }
+    .tooltip .tt-row { display: flex; justify-content: space-between; gap: 12px; }
+    .tooltip .tt-delta-good { color: #7ed957; }
+    .tooltip .tt-delta-bad  { color: #ff7676; }
+    .tooltip .tt-delta-neutral { color: #ccc; }
+  </style>
+</head>
+<body>
+
+  <h2>Performance Benchmark Chart</h2>
+
+  <div class="controls">
+    <label for="data-input">Paste benchmark JSON:</label>
+    <textarea id="data-input" spellcheck="false"></textarea>
+    <div class="button-row">
+      <button id="render-btn" class="primary">Render chart</button>
+      <button id="example-btn">Load example</button>
+      <button id="clear-btn">Clear</button>
+      <button id="download-btn">Download SVG</button>
+    </div>
+    <div id="error"></div>
+  </div>
+
+  <div class="chart-wrapper">
+    <div id="legend" class="legend"></div>
+    <div id="chart"></div>
+  </div>
+
+  <div id="tooltip" class="tooltip"></div>
+
+<script>
+const METRICS = [
+  { key: 'time',    label: 'Wall-clock time (sec)',        unit: 'sec', color: '#4e79a7', side: 'left'   },
+  { key: 'memory',  label: 'Allocated memory (GB)',        unit: 'GB',  color: '#f28e2b', side: 'right1' },
+  { key: 'objects', label: 'Allocated objects (millions)', unit: 'mln', color: '#59a14f', side: 'right2' },
+];
+
+const GC = {
+  key: 'gc',
+  label: 'GC time (sec)',
+  unit: 'sec',
+  color: '#770655',
+  widthRatio: 0.30,
+};
+
+const EXAMPLE = {
+  iterations: [
+    { label: 'baseline', time: 252, memory: 8.37, objects: 117.3, gc: 48 },
+    { label: 'iter 1',   time: 240, memory: 8.10, objects: 115.0, gc: 42 },
+    { label: 'iter 2',   time: 221, memory: 7.55, objects: 110.4, gc: 33 },
+    { label: 'iter 3',   time: 198, memory: 6.80, objects: 100.2, gc: 24 }
+  ]
+};
+
+const $ = (sel) => document.querySelector(sel);
+const tooltipEl = $('#tooltip');
+
+function showError(msg) {
+  $('#error').textContent = msg;
+}
+
+function clearChart() {
+  d3.select('#chart').selectAll('*').remove();
+  d3.select('#legend').selectAll('*').remove();
+}
+
+function findBaseline(iterations) {
+  const explicit = iterations.find(d =>
+    typeof d.label === 'string' && d.label.trim().toLowerCase() === 'baseline'
+  );
+  return explicit || iterations[0];
+}
+
+function validate(data) {
+  if (!data || typeof data !== 'object') throw new Error('JSON must be an object');
+  if (!Array.isArray(data.iterations)) throw new Error('Expected an "iterations" array field');
+  if (data.iterations.length === 0) throw new Error('"iterations" array is empty');
+  data.iterations.forEach((d, i) => {
+    if (typeof d.label !== 'string') throw new Error(`iterations[${i}].label must be a string`);
+  });
+  // A metric is either present in every iteration (as a number) or omitted from all of them.
+  METRICS.forEach(m => {
+    const presence = data.iterations.map(d => d[m.key] !== undefined);
+    const presentCount = presence.filter(Boolean).length;
+    if (presentCount > 0 && presentCount < data.iterations.length) {
+      const missingAt = presence.indexOf(false);
+      throw new Error(`metric "${m.key}" is present in some iterations but missing at iterations[${missingAt}]`);
+    }
+    if (presentCount === data.iterations.length) {
+      data.iterations.forEach((d, i) => {
+        if (typeof d[m.key] !== 'number' || !isFinite(d[m.key])) {
+          throw new Error(`iterations[${i}].${m.key} must be a number`);
+        }
+      });
+    }
+  });
+  const anyActive = METRICS.some(m =>
+    data.iterations.every(d => typeof d[m.key] === 'number' && isFinite(d[m.key]))
+  );
+  if (!anyActive) {
+    throw new Error('at least one metric (time/memory/objects) must be present in iterations');
+  }
+  data.iterations.forEach((d, i) => {
+    if (d[GC.key] !== undefined && (typeof d[GC.key] !== 'number' || !isFinite(d[GC.key]))) {
+      throw new Error(`iterations[${i}].${GC.key} must be a number if provided`);
+    }
+  });
+}
+
+function fmt(value, decimals = 2) {
+  return Number.isInteger(value) ? value.toString() : value.toFixed(decimals);
+}
+
+function renderLegend(activeMetrics, showGc) {
+  const sel = d3.select('#legend');
+  sel.append('div').attr('class', 'legend-item')
+    .html('<div class="legend-swatch" style="background:#f5d76e;opacity:0.4;"></div><span>baseline (100%)</span>');
+  activeMetrics.forEach(m => {
+    const item = sel.append('div').attr('class', 'legend-item');
+    item.append('div').attr('class', 'legend-swatch').style('background', m.color);
+    item.append('span').text(m.label);
+  });
+  if (showGc) {
+    sel.append('div').attr('class', 'legend-item')
+      .html(`<div class="legend-swatch" style="background:${GC.color};"></div><span>${GC.label}</span>`);
+  }
+}
+
+let chartState = null;
+
+function render(data) {
+  validate(data);
+  const iterations = data.iterations;
+  const baseline = findBaseline(iterations);
+
+  const activeMetrics = METRICS.filter(m =>
+    iterations.every(d => typeof d[m.key] === 'number' && isFinite(d[m.key]))
+  );
+  const showGc = activeMetrics.some(m => m.key === 'time')
+    && iterations.some(d => typeof d[GC.key] === 'number' && isFinite(d[GC.key]));
+  chartState = { activeMetrics, showGc };
+
+  clearChart();
+  renderLegend(activeMetrics, showGc);
+
+  const rightAxesCount = Math.max(0, activeMetrics.length - 1);
+  const rightMargin = rightAxesCount === 0 ? 30
+    : rightAxesCount === 1 ? 80
+    : 150;
+  const margin = { top: 24, right: rightMargin, bottom: 70, left: 90 };
+  const innerWidth = 900;
+  const innerHeight = 460;
+  const width = innerWidth + margin.left + margin.right;
+  const height = innerHeight + margin.top + margin.bottom;
+
+  const svg = d3.select('#chart').append('svg')
+    .attr('width', width).attr('height', height);
+
+  const g = svg.append('g')
+    .attr('transform', `translate(${margin.left},${margin.top})`);
+
+  const x0 = d3.scaleBand()
+    .domain(iterations.map(d => d.label))
+    .range([0, innerWidth])
+    .paddingInner(0.22)
+    .paddingOuter(0.12);
+
+  const x1 = d3.scaleBand()
+    .domain(activeMetrics.map(m => m.key))
+    .range([0, x0.bandwidth()])
+    .padding(0.08);
+
+  const yScales = {};
+  const BASELINE_HEADROOM = 1.10;
+  activeMetrics.forEach(m => {
+    const baselineVal = +baseline[m.key];
+    const maxVal = d3.max(iterations, d => +d[m.key]);
+    const minVal = d3.min(iterations, d => +d[m.key]);
+    const lo = Math.min(0, minVal);
+    const ceiling = Math.max(baselineVal, maxVal);
+    // Skip nice() so baseline lands at the same visual height for every metric.
+    yScales[m.key] = d3.scaleLinear()
+      .domain([lo, ceiling * BASELINE_HEADROOM])
+      .range([innerHeight, 0]);
+  });
+
+  // Highlight baseline column background.
+  g.selectAll('.iter-bg-baseline')
+    .data(iterations.filter(d => d === baseline))
+    .enter().append('rect')
+    .attr('class', 'iter-bg-baseline')
+    .attr('x', d => x0(d.label) - x0.step() * 0.05)
+    .attr('y', 0)
+    .attr('width', x0.bandwidth() + x0.step() * 0.1)
+    .attr('height', innerHeight);
+
+  activeMetrics.forEach(m => {
+    const scale = yScales[m.key];
+    const ticks = scale.ticks(8).filter(t => t > 0);
+    g.append('g')
+      .attr('class', `y-grid y-grid-${m.key}`)
+      .selectAll('line')
+      .data(ticks)
+      .enter().append('line')
+      .attr('x1', 0).attr('x2', innerWidth)
+      .attr('y1', d => scale(d)).attr('y2', d => scale(d))
+      .attr('stroke', m.color)
+      .attr('stroke-width', 0.7)
+      .attr('stroke-dasharray', '3 3')
+      .attr('opacity', 0.35);
+  });
+
+  // Bars: grouped by iteration, 3 bars per group.
+  const groups = g.selectAll('.iter-group')
+    .data(iterations).enter().append('g')
+    .attr('class', 'iter-group')
+    .attr('transform', d => `translate(${x0(d.label)},0)`);
+
+  groups.selectAll('.bar')
+    .data(d => activeMetrics.map(m => ({
+      metric: m,
+      value: +d[m.key],
+      label: d.label,
+      baselineValue: +baseline[m.key],
+      isBaseline: d === baseline
+    })))
+    .enter().append('rect')
+    .attr('class', d => d.isBaseline ? 'bar baseline-bar' : 'bar')
+    .attr('x', d => x1(d.metric.key))
+    .attr('y', d => yScales[d.metric.key](Math.max(0, d.value)))
+    .attr('width', x1.bandwidth())
+    .attr('height', d => Math.abs(yScales[d.metric.key](d.value) - yScales[d.metric.key](0)))
+    .attr('fill', d => d.metric.color)
+    .attr('data-title', buildBarTitle)
+    .on('mouseenter', onHover)
+    .on('mousemove', onMove)
+    .on('mouseleave', onLeave);
+
+  // GC overlay: narrow contrasting bar on top of the Time bar, sharing the Time Y-scale.
+  if (showGc) {
+    const timeBandX = x1('time');
+    const timeBandW = x1.bandwidth();
+    const gcW = timeBandW * GC.widthRatio;
+    const gcX = timeBandX + (timeBandW - gcW) / 2;
+
+    groups.selectAll('.gc-bar')
+      .data(d => {
+        const v = d[GC.key];
+        if (typeof v !== 'number' || !isFinite(v)) return [];
+        return [{
+          value: +v,
+          label: d.label,
+          totalTime: +d.time,
+          baselineValue: typeof baseline[GC.key] === 'number' ? +baseline[GC.key] : null,
+          baselineTotalTime: +baseline.time,
+          isBaseline: d === baseline
+        }];
+      })
+      .enter().append('rect')
+      .attr('class', d => d.isBaseline ? 'gc-bar baseline-bar' : 'gc-bar')
+      .attr('x', gcX)
+      .attr('y', d => yScales.time(Math.max(0, d.value)))
+      .attr('width', gcW)
+      .attr('height', d => Math.abs(yScales.time(d.value) - yScales.time(0)))
+      .attr('fill', GC.color)
+      .attr('data-title', buildGcTitle)
+      .on('mouseenter', onHoverGC)
+      .on('mousemove', onMove)
+      .on('mouseleave', onLeave);
+  }
+
+  // Baseline reference lines (100% level) — one per metric, drawn in its own color.
+  activeMetrics.forEach(m => {
+    const yVal = yScales[m.key](+baseline[m.key]);
+    g.append('line')
+      .attr('class', 'baseline-marker')
+      .attr('x1', 0).attr('x2', innerWidth)
+      .attr('y1', yVal).attr('y2', yVal)
+      .attr('stroke', m.color);
+  });
+
+  // X axis.
+  g.append('g')
+    .attr('class', 'axis x-axis')
+    .attr('transform', `translate(0,${innerHeight})`)
+    .call(d3.axisBottom(x0));
+  g.append('text')
+    .attr('class', 'axis-label x-axis-label')
+    .attr('text-anchor', 'middle')
+    .attr('x', innerWidth / 2)
+    .attr('y', innerHeight + 50)
+    .text('Iterations');
+
+  // Y axes — first active metric on the left, the rest stack to the right of the chart.
+  activeMetrics.forEach((m, idx) => {
+    let axisFn, transform, labelTransform;
+    if (idx === 0) {
+      axisFn = d3.axisLeft;
+      transform = null;
+      labelTransform = `translate(${-62},${innerHeight / 2}) rotate(-90)`;
+    } else if (idx === 1) {
+      axisFn = d3.axisRight;
+      transform = `translate(${innerWidth},0)`;
+      labelTransform = `translate(${innerWidth + 48},${innerHeight / 2}) rotate(90)`;
+    } else {
+      const off = innerWidth + 78;
+      axisFn = d3.axisRight;
+      transform = `translate(${off},0)`;
+      labelTransform = `translate(${off + 50},${innerHeight / 2}) rotate(90)`;
+    }
+    const axisG = g.append('g').attr('class', 'axis');
+    if (transform) axisG.attr('transform', transform);
+    axisG
+      .call(axisFn(yScales[m.key]).ticks(8))
+      .call(sel => sel.selectAll('text').attr('fill', m.color))
+      .call(sel => sel.selectAll('path,line').attr('stroke', m.color));
+    g.append('text')
+      .attr('class', 'axis-label')
+      .attr('text-anchor', 'middle')
+      .attr('transform', labelTransform)
+      .attr('fill', m.color)
+      .text(m.label);
+  });
+}
+
+function buildBarTitle(d) {
+  const pct = d.baselineValue === 0
+    ? '—'
+    : (d.value / d.baselineValue * 100).toFixed(1) + '%';
+  const delta = d.value - d.baselineValue;
+  const deltaSign = delta > 0 ? '+' : '';
+  const label = d.label + (d.isBaseline ? ' (baseline)' : '');
+  return `${label}
+${d.metric.label}: ${fmt(d.value)} ${d.metric.unit}
+baseline: ${fmt(d.baselineValue)} ${d.metric.unit}
+vs baseline: ${pct} (${deltaSign}${fmt(delta)})`;
+}
+
+function buildGcTitle(d) {
+  const totalPct = d.totalTime
+    ? (d.value / d.totalTime * 100).toFixed(1) + '%'
+    : '—';
+  const hasBaseline = d.baselineValue !== null && d.baselineValue > 0;
+  const label = d.label + (d.isBaseline ? ' (baseline)' : '');
+  let text = `${label} — GC
+GC time: ${fmt(d.value)} ${GC.unit}
+of total time: ${totalPct}`;
+  if (hasBaseline) {
+    const pct = (d.value / d.baselineValue * 100).toFixed(1) + '%';
+    const delta = d.value - d.baselineValue;
+    const deltaSign = delta > 0 ? '+' : '';
+    text += `
+baseline GC: ${fmt(d.baselineValue)} ${GC.unit}
+vs baseline: ${pct} (${deltaSign}${fmt(delta)})`;
+  }
+  return text;
+}
+
+function onHover(event, d) {
+  const pct = d.baselineValue === 0
+    ? '—'
+    : (d.value / d.baselineValue * 100).toFixed(1) + '%';
+  const delta = d.value - d.baselineValue;
+  const deltaSign = delta > 0 ? '+' : '';
+  // For these metrics, lower is better; positive delta = regression.
+  const deltaClass = Math.abs(delta) < 1e-9
+    ? 'tt-delta-neutral'
+    : (delta < 0 ? 'tt-delta-good' : 'tt-delta-bad');
+
+  tooltipEl.innerHTML = `
+    <div class="tt-title">${d.label}${d.isBaseline ? ' (baseline)' : ''}</div>
+    <div class="tt-row"><span>${d.metric.label}:</span><span><b>${fmt(d.value)}</b> ${d.metric.unit}</span></div>
+    <div class="tt-row"><span>baseline:</span><span>${fmt(d.baselineValue)} ${d.metric.unit}</span></div>
+    <div class="tt-row"><span>vs baseline:</span><span class="${deltaClass}">${pct} (${deltaSign}${fmt(delta)})</span></div>
+  `;
+  tooltipEl.style.opacity = '1';
+}
+
+function onHoverGC(event, d) {
+  const totalPct = d.totalTime
+    ? (d.value / d.totalTime * 100).toFixed(1) + '%'
+    : '—';
+  const hasBaseline = d.baselineValue !== null && d.baselineValue > 0;
+  const baselinePct = hasBaseline
+    ? (d.value / d.baselineValue * 100).toFixed(1) + '%'
+    : '—';
+  const delta = hasBaseline ? d.value - d.baselineValue : 0;
+  const deltaSign = delta > 0 ? '+' : '';
+  const deltaClass = !hasBaseline || Math.abs(delta) < 1e-9
+    ? 'tt-delta-neutral'
+    : (delta < 0 ? 'tt-delta-good' : 'tt-delta-bad');
+
+  tooltipEl.innerHTML = `
+    <div class="tt-title">${d.label}${d.isBaseline ? ' (baseline)' : ''} — GC</div>
+    <div class="tt-row"><span>GC time:</span><span><b>${fmt(d.value)}</b> ${GC.unit}</span></div>
+    <div class="tt-row"><span>of total time:</span><span>${totalPct}</span></div>
+    ${hasBaseline ? `
+      <div class="tt-row"><span>baseline GC:</span><span>${fmt(d.baselineValue)} ${GC.unit}</span></div>
+      <div class="tt-row"><span>vs baseline:</span><span class="${deltaClass}">${baselinePct} (${deltaSign}${fmt(delta)})</span></div>
+    ` : ''}
+  `;
+  tooltipEl.style.opacity = '1';
+}
+
+function onMove(event) {
+  const pad = 14;
+  const ttRect = tooltipEl.getBoundingClientRect();
+  let x = event.pageX + pad;
+  let y = event.pageY - ttRect.height - pad;
+  if (x + ttRect.width > window.scrollX + window.innerWidth) {
+    x = event.pageX - ttRect.width - pad;
+  }
+  if (y < window.scrollY + 4) {
+    y = event.pageY + pad;
+  }
+  tooltipEl.style.left = x + 'px';
+  tooltipEl.style.top = y + 'px';
+}
+
+function onLeave() {
+  tooltipEl.style.opacity = '0';
+}
+
+// Wire up controls.
+$('#render-btn').addEventListener('click', () => {
+  showError('');
+  try {
+    const raw = $('#data-input').value.trim();
+    if (!raw) throw new Error('Enter JSON into the text area');
+    const data = JSON.parse(raw);
+    render(data);
+  } catch (e) {
+    showError('Error: ' + e.message);
+    clearChart();
+  }
+});
+
+$('#example-btn').addEventListener('click', () => {
+  $('#data-input').value = JSON.stringify(EXAMPLE, null, 2);
+  showError('');
+});
+
+$('#clear-btn').addEventListener('click', () => {
+  $('#data-input').value = '';
+  showError('');
+  clearChart();
+});
+
+$('#download-btn').addEventListener('click', () => {
+  showError('');
+  try {
+    downloadSVG();
+  } catch (e) {
+    showError('Failed to save SVG: ' + e.message);
+  }
+});
+
+const EXPORT_STYLE = `
+  .axis text { font-size: 11px; font-family: sans-serif; }
+  .axis-label { font-size: 12px; font-weight: 600; font-family: sans-serif; }
+  .x-axis text, .x-axis-label { fill: #2a91a9; }
+  .x-axis path, .x-axis line { stroke: #2a91a9; }
+  .bar.baseline-bar, .gc-bar.baseline-bar { stroke: #2a91a9; stroke-width: 1.2; }
+  .baseline-marker { stroke-dasharray: 4 3; stroke-width: 1.2; fill: none; opacity: 0.55; }
+  .iter-bg-baseline { fill: #f5d76e; opacity: 0.12; }
+`;
+
+function downloadSVG() {
+  const svgEl = document.querySelector('#chart svg');
+  if (!svgEl) throw new Error('render the chart first');
+
+  const clone = svgEl.cloneNode(true);
+  clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+
+  // Inline the CSS the chart depends on so it renders correctly outside the page.
+  const styleEl = document.createElementNS('http://www.w3.org/2000/svg', 'style');
+  styleEl.textContent = EXPORT_STYLE;
+  clone.insertBefore(styleEl, clone.firstChild);
+
+  // Convert data-title into native <title> children so SVG viewers show hover tooltips.
+  clone.querySelectorAll('[data-title]').forEach(el => {
+    const t = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+    t.textContent = el.getAttribute('data-title');
+    el.insertBefore(t, el.firstChild);
+    el.removeAttribute('data-title');
+  });
+
+  // The HTML legend lives outside <svg>, so we rebuild it as SVG primitives for the export.
+  appendLegendToClone(clone);
+
+  const xml = new XMLSerializer().serializeToString(clone);
+  const blob = new Blob(
+    ['<?xml version="1.0" encoding="UTF-8"?>\n', xml],
+    { type: 'image/svg+xml;charset=utf-8' }
+  );
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'benchmark-chart.svg';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 100);
+}
+
+function appendLegendToClone(clone) {
+  const active = chartState ? chartState.activeMetrics : METRICS;
+  const showGc = chartState ? chartState.showGc : true;
+  const items = [
+    { color: '#f5d76e', label: 'baseline (100%)', opacity: 0.4 },
+    ...active.map(m => ({ color: m.color, label: m.label })),
+    ...(showGc ? [{ color: GC.color, label: GC.label }] : [])
+  ];
+
+  const swatchSize = 14;
+  const swatchTextGap = 6;
+  const itemGap = 24;
+  const fontSize = 13;
+  const fontFamily = 'sans-serif';
+
+  const ctx = document.createElement('canvas').getContext('2d');
+  ctx.font = `${fontSize}px ${fontFamily}`;
+
+  const widths = items.map(item =>
+    swatchSize + swatchTextGap + ctx.measureText(item.label).width
+  );
+  const totalWidth = widths.reduce((a, b) => a + b, 0) + itemGap * (items.length - 1);
+
+  const svgWidth = parseFloat(clone.getAttribute('width'));
+  const svgHeight = parseFloat(clone.getAttribute('height'));
+  const bandHeight = 36;
+  clone.setAttribute('height', svgHeight + bandHeight);
+  if (clone.hasAttribute('viewBox')) {
+    const vb = clone.getAttribute('viewBox').split(/[\s,]+/).map(Number);
+    vb[3] = svgHeight + bandHeight;
+    clone.setAttribute('viewBox', vb.join(' '));
+  }
+
+  const NS = 'http://www.w3.org/2000/svg';
+
+  // Push the existing chart down so the legend fits in the new top band.
+  const styleEl = clone.querySelector('style');
+  const wrapper = document.createElementNS(NS, 'g');
+  wrapper.setAttribute('transform', `translate(0, ${bandHeight})`);
+  Array.from(clone.children)
+    .filter(c => c !== styleEl)
+    .forEach(c => wrapper.appendChild(c));
+  clone.appendChild(wrapper);
+
+  const g = document.createElementNS(NS, 'g');
+  g.setAttribute('class', 'svg-legend');
+  g.setAttribute('transform', `translate(0, ${bandHeight / 2})`);
+
+  let x = (svgWidth - totalWidth) / 2;
+  items.forEach((item, i) => {
+    const rect = document.createElementNS(NS, 'rect');
+    rect.setAttribute('x', x);
+    rect.setAttribute('y', -swatchSize / 2);
+    rect.setAttribute('width', swatchSize);
+    rect.setAttribute('height', swatchSize);
+    rect.setAttribute('rx', 2);
+    rect.setAttribute('fill', item.color);
+    if (item.opacity !== undefined) rect.setAttribute('opacity', item.opacity);
+    rect.setAttribute('stroke', 'rgba(120,120,120,0.35)');
+    rect.setAttribute('stroke-width', 1);
+    g.appendChild(rect);
+
+    const text = document.createElementNS(NS, 'text');
+    text.setAttribute('x', x + swatchSize + swatchTextGap);
+    text.setAttribute('y', 0);
+    text.setAttribute('dominant-baseline', 'middle');
+    text.setAttribute('font-family', fontFamily);
+    text.setAttribute('font-size', fontSize);
+    text.setAttribute('fill', '#2a91a9');
+    text.textContent = item.label;
+    g.appendChild(text);
+
+    x += widths[i] + itemGap;
+  });
+
+  clone.appendChild(g);
+}
+
+// Auto-load example on first open.
+$('#data-input').value = JSON.stringify(EXAMPLE, null, 2);
+render(EXAMPLE);
+</script>
+</body>
+</html>
