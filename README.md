@@ -1,105 +1,25 @@
-# Acuminator
+# AcuminatorTurbo
 
-Acuminator is a Visual Studio extension that simplifies development with Acumatica Framework. 
-Acuminator provides the following functionality to boost developer productivity:
-* Static code analysis diagnostics, code fixes, and refactorings
-* Syntax highlighting of Acumatica-specific code elements
-* BQL formatting and outlining
-* Navigation between related code elements
-* The Code Map tool which displays the structure of graphs, DACs, and their extensions
-* Acumatica Code Snippets which contain templates for DACs, DAC fields, and graph events
+A personal performance playground for making [Acuminator](https://github.com/Acumatica/Acuminator) faster, leaner, and closer to ideal. Performance only. Here I try out my ideas as they come.
 
-Acuminator also provides a standalone command-line tool that can be used to run Acuminator code analysis on solutions outside of Visual Studio. This tool is useful for CI/CD pipelines and other automated processes.
-You can find the description of the command-line tool in the [Acuminator CLI](docs/AcuminatorCLI.md) documentation.
+---
 
-## Diagnostics and Code Fixes
-Acuminator provides diagnostics and code fixes for common developer challenges related to Acumatica Framework.
-Acuminator finds common mistakes and typos that are usually not so easy to find, for example:
-* Incorrect signatures of the `PXAction` delegates
-* Typos in the names of view delegates
-* `PXStringList` declarations without the `PXDBString` attribute
-* C#-style inheritance from `PXCacheExtension`
-* Incompatible types of a DAC property and a DB field attribute declared on it
-* Improper localization of a string
+## Iteration 1: Significant performance improvement
 
-For the detected errors, Acuminator suggests code fixes. For the full list of supported diagnostics and code fixes, see [Diagnostics](docs/Summary.md#diagnostics). 
+✅ Landed in upstream as [Acuminator#668](https://github.com/Acumatica/Acuminator/pull/668) on 2026-05-08.
 
-Acuminator supports two approaches for the suppression of unwanted diagnostic alerts:
-* Suppress diagnostic with a special comment placed a line above the code
-* Suppress diagnostic with a specific suppression file. With this mechanism, a specific project file will store a list of diagnostics suppressed in the project. This approach is supported only if Acuminator is installed as a VSIX plugin. 
+Introduced `SymbolInfoCache` and eliminated double-binding of symbol info for member-access invocations in `NestedInvocationWalker`. The expression `foo.Bar()` was previously processed both as `MemberAccessExpressionSyntax` and `InvocationExpressionSyntax`, so every symbol lookup ran twice.
 
-## Code Coloring
-Acuminator adds code coloring to the following Acumatica-specific code elements:
-* Graphs and graph extensions
-* DACs and DAC extensions
-* DAC fields
-* BQL queries: operators and angle braces
-* BQL constants
-* Actions
+| small (`PX.Objects.SV`) | medium (`PX.Objects.AM`) | large (`PX.Objects`) |
+| :---: | :---: | :---: |
+| ![small](perf/iterations/iteration_1/small.svg)<br>time **1.3× faster (−23%)** · memory **1.6× less (−37%)** · objects **1.3× less (−26%)** · GC **1.2× less (−14%)** | ![medium](perf/iterations/iteration_1/medium.svg)<br>time **2.8× faster (−64%)** · memory **5.8× less (−83%)** · objects **4.1× less (−76%)** · GC **3.2× less (−68%)** | ![large](perf/iterations/iteration_1/large.svg)<br>time **7.4× faster (−87%)** · memory **8.8× less (−89%)** · GC **9.6× less (−90%)** |
 
-You can adjust the color schema in the "Fonts and Colors" section of Visual Studio settings.
- 
-## BQL Formatting, and Outlining
-Acuminator allows you to format BQL statements, which improves the readability of complex BQL queries. The command to enable formatting of BQL queries is located in the context menu of the Visual Studio code editor.
+> ⓘ Allocated object count could not be measured for the large target. Allocation sampling never completed there, even after hours of running. Small and medium charts include it.
 
-Also, Acuminator provides an outlining functionality. It can collapse parts of BQL queries and the code inside attributes to small tags, which makes it easier for you to focus on the parts of code related to the current task.
+**Commits:** [Acuminator#668](https://github.com/Acumatica/Acuminator/pull/668) (upstream merge).
 
-## Navigation
-Acuminator adds a command to the context menu of the Visual Studio code editor. The command allows you to quickly navigate between the following objects:
-* A graph view and its view delegate
-* An action and its delegate
+---
 
-## Code Map
-Acuminator provides the Code Map tool which displays to the user a structure of the following Acumatica-specific code elements:
-* Graphs and graph extensions. For these elements, the Code Map displays the following:
-   - Views and corresponding view delegates
-   - Actions and corresponding action delegates
-   - Cache attached events with attributes declared on them. The events are grouped
-   by the DAC type and the DAC field
-   - Row events grouped by the DAC type
-   - Field events grouped by the DAC type and the DAC field
-   - Members overridden using the `PXOverride` attribute 
-   - Overrides of virtual type members including the `Persist` method in the **Base Overrides** node 
-   - Constructors and the `IsActive` method in the **Initialization and Activation** node 
-* DACs and DAC extensions. For these elements, the Code Map displays:
-   - Key DAC fields with attributes declared on them
-   - All DAC fields with attributes declared on them
-   - The `IsActive` method for a DAC extension in the **Initialization and Activation** node 
-   
-   For each DAC field, the Code Map displays the following additional information:
-   - The field data type
-   - Indicator of whether the field is bound or unbound
-   - Indicator of whether the field has identity functionality
-   - Indicator of whether the field has auto-numbering functionality
-   
-The Code Map shows the elements in a tree view. You can collapse a tree node to hide all its descendants. The Code Map also provides an ability to sort nodes children and descendants alphabetically or by the declaration order.
+## For upstream maintainers
 
-You can navigate to every code element displayed in the Code Map by double clicking on the corresponding tree node. Some category nodes support cycling navigation. You can double click them sequentially and navigate through the list of its children code elements.
-
-## Acumatica Code Snippets
-A code snippet is a small block of reusable code that a developer can paste in a code file.
-Acuminator provides Acumatica Code Snippets which represent a collection of C# code snippets designed for customizations of Acumatica ERP. 
-Acumatica Code Snippets provide templates for the following:
-* DACs and DAC fields
-* Graph event handlers with the following signature styles:
-   * Classic Name Convention signature
-   * Generic signature
-   * Short generic signature for graph field events
-
-All code snippets are located in the Acumatica [Code Snippets](https://github.com/Acumatica/CodeSnippets) repository and can be downloaded separately.
-
-## The Process of Building the Solution
-* [Build Guidelines](docs/dev/BuildGuidelines/BuildGuidelines.md)
-
-## Documentation
-* [Diagnostics](docs/Summary.md#diagnostics)
-* [Acuminator CLI Documentation](docs/AcuminatorCLI.md)
-* [Troubleshooting](docs/dev/Troubleshooting/Troubleshooting.md)
-
-## Developer Documentation
-* [Coding Guidelines](docs/dev/CodingGuidelines/CodingGuidelines.md)
-* [Recursive Code Analysis](docs/dev/RecursiveCodeAnalysis/RecursiveCodeAnalysis.md)
-* [Documentation Guidelines](docs/dev/DocumentationGuidelines/DiagnosticDescription.md)
-
-## Release Notes
-[Release Notes](docs/ReleaseNotes.md)
+The contents of `perf/` are fork-agnostic measurement infrastructure, free to cherry-pick or adapt. Any future iteration landed here may also be submitted upstream as a focused PR on request.
