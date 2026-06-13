@@ -4,6 +4,26 @@ A personal performance playground for making [Acuminator](https://github.com/Acu
 
 ---
 
+## Cumulative results
+
+> **7.4× faster (−87%) · 8.8× less memory (−89%) · 9.6× less GC time (−90%)** on `PX.Objects` (large target).
+> Cumulative since the start of measurements, across all iterations published in this fork.
+
+| size | wall-clock | memory | objects | GC time |
+| :--- | :---: | :---: | :---: | :---: |
+| small (`PX.Objects.SV`) | 1.3× faster (−23%) | 1.6× less (−37%) | 1.3× less (−26%) | 1.2× less (−14%) |
+| medium (`PX.Objects.AM`) | 2.8× faster (−64%) | 5.8× less (−83%) | 4.1× less (−76%) | 3.2× less (−68%) |
+| large (`PX.Objects`) | **7.4× faster (−87%)** | **8.8× less (−89%)** | _n/a_ | **9.6× less (−90%)** |
+
+
+| small (`PX.Objects.SV`) | medium (`PX.Objects.AM`) | large (`PX.Objects`) |
+| :---: | :---: | :---: |
+| ![small](perf/iterations/cumulative/small.svg) | ![medium](perf/iterations/cumulative/medium.svg) | ![large](perf/iterations/cumulative/large.svg) |
+
+> ⚠ Approximate. The figures combine measurements taken at different historical baselines as iterations accumulated. See individual iteration cards below for exact frozen numbers per iteration.
+
+---
+
 ## Iteration 1: Significant performance improvement
 
 ✅ Landed in upstream as [Acuminator#668](https://github.com/Acumatica/Acuminator/pull/668) on 2026-05-08.

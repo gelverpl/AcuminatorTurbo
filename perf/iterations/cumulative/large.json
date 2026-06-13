@@ -1,0 +1,16 @@
+{
+  "iterations": [
+    {
+      "label": "baseline",
+      "time": 2011.38,
+      "memory": 513.75,
+      "gc": 1234.32
+    },
+    {
+      "label": "iter-1",
+      "time": 270.87,
+      "memory": 58.50,
+      "gc": 128.67
+    }
+  ]
+}
