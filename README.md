@@ -8,7 +8,7 @@ A personal performance playground for making [Acuminator](https://github.com/Acu
 
 ✅ Landed in upstream as [Acuminator#668](https://github.com/Acumatica/Acuminator/pull/668) on 2026-05-08.
 
-Introduced `SymbolInfoCache` and eliminated double-binding of symbol info for member-access invocations in `NestedInvocationWalker`. The expression `foo.Bar()` was previously processed both as `MemberAccessExpressionSyntax` and `InvocationExpressionSyntax`, so every symbol lookup ran twice.
+Introduced `SymbolInfoCache` and eliminated double-binding of symbol info for member-access invocations in `NestedInvocationWalker`. The expression `foo.Bar()` was previously processed both as `MemberAccessExpressionSyntax` and `InvocationExpressionSyntax`, so the same call site was bound twice.
 
 | small (`PX.Objects.SV`) | medium (`PX.Objects.AM`) | large (`PX.Objects`) |
 | :---: | :---: | :---: |
@@ -17,6 +17,8 @@ Introduced `SymbolInfoCache` and eliminated double-binding of symbol info for me
 > ⓘ Allocated object count could not be measured for the large target. Allocation sampling never completed there, even after hours of running. Small and medium charts include it.
 
 **Commits:** [Acuminator#668](https://github.com/Acumatica/Acuminator/pull/668) (upstream merge).
+
+**Captured as:** [P-001: One binding per call site](perf/PERFORMANCE_MANIFEST.md#p-001-one-binding-per-call-site)
 
 ---
 
